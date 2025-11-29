@@ -1,0 +1,8 @@
+# Dump files (too large for git)
+mongo-init/dump/*
+!mongo-init/dump/.gitkeep
+
+# Environment files
+.env
+.env.local
+

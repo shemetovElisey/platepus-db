@@ -1,0 +1,3 @@
+# Place your MongoDB dump files here
+# The dump should be extracted (not in .gz format) in the standard mongorestore format
+
