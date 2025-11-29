@@ -9,7 +9,6 @@
 #   View logs: docker compose logs -f mongo
 #
 
-version: '3.8'
 
 services:
   mongo:
