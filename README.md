@@ -239,6 +239,52 @@ docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
 - `docker-compose.production.yml` - готовая конфигурация
 - `CONNECTION_GUIDE.md` - руководство по подключению с примерами
 
+## Очистка базы данных
+
+### Удаление продуктов без данных о питательности
+
+Скрипт `remove-products-without-nutrition.sh` позволяет удалить из базы данных все продукты, у которых нет валидных данных об энергетической ценности (калориях) и макронутриентах (БЖУ).
+
+**⚠️ ВАЖНО: Эта операция НЕОБРАТИМА! Обязательно сделайте резервную копию перед удалением!**
+
+#### Создание резервной копии
+
+```bash
+# Создать дамп перед удалением
+docker compose exec mongo mongodump --db=platepus --out=/data/backup-before-cleanup
+docker compose cp mongo:/data/backup-before-cleanup ./backup-before-cleanup
+```
+
+#### Использование скрипта
+
+```bash
+# 1. Сначала выполните "сухой прогон" (dry run) - посмотрите, что будет удалено
+./remove-products-without-nutrition.sh mongodb://localhost:27017/platepus --dry-run
+
+# 2. Если результат устраивает, выполните реальное удаление
+./remove-products-without-nutrition.sh mongodb://localhost:27017/platepus --confirm
+```
+
+#### Что удаляется
+
+Скрипт удаляет продукты, у которых:
+- Нет объекта `nutriments`, ИЛИ
+- Нет валидных данных об энергетической ценности (ккал или кДж), И
+- Нет валидных данных о макронутриентах (белки, жиры или углеводы)
+
+#### Примеры
+
+```bash
+# Локальная база данных (без аутентификации)
+./remove-products-without-nutrition.sh mongodb://localhost:27017/platepus --dry-run
+
+# С аутентификацией
+./remove-products-without-nutrition.sh mongodb://user:password@localhost:27017/platepus --confirm
+
+# Удаленная база данных
+./remove-products-without-nutrition.sh mongodb://user:password@remote-host:27017/platepus --confirm
+```
+
 ## Troubleshooting
 
 ### MongoDB не запускается
