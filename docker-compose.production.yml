@@ -1,0 +1,17 @@
+# Production Docker Compose configuration with authentication
+# Usage: docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+
+version: '3.8'
+
+services:
+  mongo:
+    environment:
+      # Set these in .env file or environment variables
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: platepus
+    # Optionally bind to specific interface instead of all (0.0.0.0)
+    # ports:
+    #   - '127.0.0.1:27017:27017'  # Only localhost
+    # Or remove ports entirely and use Docker network only
+
