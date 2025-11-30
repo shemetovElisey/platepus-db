@@ -3,10 +3,15 @@
 # This repository contains only the database configuration.
 # The application should connect to this database using DATABASE_URL environment variable.
 #
-# Usage:
+# Usage (Development - No Authentication):
 #   Start DB: docker compose up -d
 #   Stop DB:  docker compose down
 #   View logs: docker compose logs -f mongo
+#
+# Usage (Production - With Authentication):
+#   Create .env file with MONGO_ROOT_USERNAME and MONGO_ROOT_PASSWORD
+#   Start DB: docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+#   See docker-compose.production.yml and CONNECTION_GUIDE.md for details
 #
 
 
@@ -17,8 +22,13 @@ services:
     restart: unless-stopped
     ports:
       - '27017:27017'
+      # For production, consider binding only to localhost:
+      # - '127.0.0.1:27017:27017'
+      # Or use firewall rules to restrict access
     environment:
       MONGO_INITDB_DATABASE: platepus
+      # For production with authentication, use docker-compose.production.yml
+      # which adds MONGO_INITDB_ROOT_USERNAME and MONGO_INITDB_ROOT_PASSWORD
     volumes:
       - mongo_data:/data/db
       - ./mongo-init:/docker-entrypoint-initdb.d

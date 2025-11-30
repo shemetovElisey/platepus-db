@@ -17,7 +17,7 @@ platepus-db/
 
 ## Быстрый старт
 
-### Локальный запуск
+### Локальный запуск (без аутентификации)
 
 ```bash
 # Запустить MongoDB
@@ -29,6 +29,26 @@ docker compose ps
 # Просмотр логов
 docker compose logs -f mongo
 ```
+
+### Production запуск (с аутентификацией)
+
+```bash
+# Создайте .env файл с учетными данными
+cat > .env << 'EOF'
+MONGO_ROOT_USERNAME=admin
+MONGO_ROOT_PASSWORD=your_secure_password
+EOF
+
+# Запустите с production конфигурацией
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+
+# Проверьте статус
+docker compose ps
+```
+
+**См. также:**
+- `docker-compose.production.yml` - production конфигурация
+- `CONNECTION_GUIDE.md` - руководство по подключению
 
 ### Подключение к базе
 
@@ -194,19 +214,30 @@ docker compose exec mongo mongosh platepus --eval "db.stats(1024*1024)"
 
 ⚠️ **Важно для продакшена:**
 
-1. Настроить аутентификацию MongoDB
-2. Использовать SSL/TLS для соединений
-3. Ограничить доступ по сети (firewall)
-4. Регулярно делать бэкапы
-5. Не хранить пароли в открытом виде
+1. ✅ **Настроить аутентификацию MongoDB** - используйте `docker-compose.production.yml`
+2. ✅ **Использовать SSL/TLS для соединений**
+3. ✅ **Ограничить доступ по сети (firewall)**
+4. ✅ **Регулярно делать бэкапы**
+5. ✅ **Не хранить пароли в открытом виде** - используйте `.env` файл (добавлен в `.gitignore`)
 
-Пример настройки аутентификации:
+### Настройка аутентификации
 
-```yaml
-environment:
-  MONGO_INITDB_ROOT_USERNAME: admin
-  MONGO_INITDB_ROOT_PASSWORD: secure_password
+**Используйте готовую production конфигурацию:**
+
+```bash
+# Создайте .env файл с паролями
+cat > .env << 'EOF'
+MONGO_ROOT_USERNAME=admin
+MONGO_ROOT_PASSWORD=your_very_secure_password_here
+EOF
+
+# Запустите с аутентификацией
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
 ```
+
+**Подробнее см.:**
+- `docker-compose.production.yml` - готовая конфигурация
+- `CONNECTION_GUIDE.md` - руководство по подключению с примерами
 
 ## Troubleshooting
 
