@@ -41,6 +41,39 @@ for arg in "$@"; do
     esac
 done
 
+# Detect if we should use Docker or local mongosh
+USE_DOCKER=false
+if ! command -v mongosh &> /dev/null; then
+    # mongosh not installed - check if Docker is available
+    if command -v docker &> /dev/null; then
+        USE_DOCKER=true
+    else
+        echo "❌ Error: mongosh is not installed and Docker is not available."
+        echo "Please install mongosh: https://www.mongodb.com/try/download/shell"
+        exit 1
+    fi
+fi
+
+# Define MONGO_CMD function based on available tools
+if [ "$USE_DOCKER" = true ]; then
+    # Extract database name from connection string
+    DB_NAME=$(echo "$CONNECTION_STRING" | sed -n 's|.*/\([^?]*\).*|\1|p')
+    if [ -z "$DB_NAME" ]; then
+        DB_NAME="platepus"
+    fi
+    # Use Docker container with mongosh
+    MONGO_CMD() {
+        docker run -i --rm mongo:7.0 mongosh "$CONNECTION_STRING" --quiet "$@"
+    }
+    echo "Using Docker container (mongo:7.0) for MongoDB connection"
+else
+    # Use local mongosh
+    MONGO_CMD() {
+        mongosh "$CONNECTION_STRING" --quiet "$@"
+    }
+    echo "Using local mongosh installation"
+fi
+
 echo "=========================================="
 echo "Remove Products Without Nutrition Data"
 echo "=========================================="
@@ -64,143 +97,9 @@ elif [ "$CONFIRM" = false ]; then
     exit 1
 fi
 
-echo "Analyzing products..."
+echo "Starting deletion process..."
 echo ""
-
-# Count total products
-TOTAL_COUNT=$(mongosh "$CONNECTION_STRING" --quiet --eval "db.products.countDocuments()")
-echo "Total products in database: $TOTAL_COUNT"
-
-# Count products with valid energy data
-PRODUCTS_WITH_ENERGY=$(mongosh "$CONNECTION_STRING" --quiet --eval "
-db.products.countDocuments({
-    \$and: [
-        { nutriments: { \$exists: true } },
-        {
-            \$or: [
-                { 'nutriments.energy-kcal_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kcal_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy-kj_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kj_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy-kcal_value': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kcal_value': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy-kj_value': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kj_value': { \$exists: true, \$type: 'number' } }
-            ]
-        }
-    ]
-})
-")
-
-echo "Products with valid energy data: $PRODUCTS_WITH_ENERGY"
-
-# Count products with valid macronutrients (proteins, fats, or carbohydrates)
-PRODUCTS_WITH_MACROS=$(mongosh "$CONNECTION_STRING" --quiet --eval "
-db.products.countDocuments({
-    \$and: [
-        { nutriments: { \$exists: true } },
-        {
-            \$or: [
-                { 'nutriments.proteins_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.protein_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.fat_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.fats_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.total-fat_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.total_fat_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carbohydrates_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carbohydrate_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carbs_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carb_100g': { \$exists: true, \$type: 'number' } }
-            ]
-        }
-    ]
-})
-")
-
-echo "Products with valid macronutrients (БЖУ): $PRODUCTS_WITH_MACROS"
-
-# Count products with BOTH energy AND macronutrients
-PRODUCTS_WITH_BOTH=$(mongosh "$CONNECTION_STRING" --quiet --eval "
-db.products.countDocuments({
-    \$and: [
-        { nutriments: { \$exists: true } },
-        {
-            \$or: [
-                { 'nutriments.energy-kcal_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kcal_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy-kj_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kj_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy-kcal_value': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kcal_value': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy-kj_value': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.energy_kj_value': { \$exists: true, \$type: 'number' } }
-            ]
-        },
-        {
-            \$or: [
-                { 'nutriments.proteins_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.protein_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.fat_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.fats_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.total-fat_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.total_fat_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carbohydrates_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carbohydrate_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carbs_100g': { \$exists: true, \$type: 'number' } },
-                { 'nutriments.carb_100g': { \$exists: true, \$type: 'number' } }
-            ]
-        }
-    ]
-})
-")
-
-echo "Products with BOTH energy AND macronutrients: $PRODUCTS_WITH_BOTH"
-
-# Count products to be deleted (no energy OR no macronutrients)
-PRODUCTS_TO_DELETE=$(mongosh "$CONNECTION_STRING" --quiet --eval "
-db.products.countDocuments({
-    \$or: [
-        { nutriments: { \$exists: false } },
-        { nutriments: null },
-        {
-            \$and: [
-                {
-                    \$nor: [
-                        { 'nutriments.energy-kcal_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kcal_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy-kj_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kj_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy-kcal_value': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kcal_value': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy-kj_value': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kj_value': { \$exists: true, \$type: 'number' } }
-                    ]
-                },
-                {
-                    \$nor: [
-                        { 'nutriments.proteins_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.protein_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.fat_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.fats_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.total-fat_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.total_fat_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carbohydrates_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carbohydrate_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carbs_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carb_100g': { \$exists: true, \$type: 'number' } }
-                    ]
-                }
-            ]
-        }
-    ]
-})
-")
-
-echo ""
-echo "=========================================="
-echo "Products to be deleted: $PRODUCTS_TO_DELETE"
-echo "Products to keep: $((TOTAL_COUNT - PRODUCTS_TO_DELETE))"
-echo "=========================================="
+echo "⚠️  Note: Detailed counts are skipped for performance. Deletion will proceed directly."
 echo ""
 
 if [ "$DRY_RUN" = true ]; then
@@ -211,12 +110,7 @@ if [ "$DRY_RUN" = true ]; then
     exit 0
 fi
 
-if [ "$PRODUCTS_TO_DELETE" -eq 0 ]; then
-    echo "✅ No products to delete. All products have valid nutrition data."
-    exit 0
-fi
-
-echo "⚠️  WARNING: About to delete $PRODUCTS_TO_DELETE products!"
+echo "⚠️  WARNING: About to delete products without valid КБЖУ data!"
 echo ""
 read -p "Type 'DELETE' to confirm: " confirmation
 
@@ -226,54 +120,111 @@ if [ "$confirmation" != "DELETE" ]; then
 fi
 
 echo ""
-echo "Deleting products..."
+echo "Deleting products in batches (this may take a while)..."
+echo ""
+echo "Using optimized batch deletion for better performance..."
 echo ""
 
-# Delete products
-DELETED_COUNT=$(mongosh "$CONNECTION_STRING" --quiet --eval "
-var result = db.products.deleteMany({
-    \$or: [
-        { nutriments: { \$exists: false } },
-        { nutriments: null },
-        {
-            \$and: [
-                {
-                    \$nor: [
-                        { 'nutriments.energy-kcal_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kcal_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy-kj_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kj_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy-kcal_value': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kcal_value': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy-kj_value': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.energy_kj_value': { \$exists: true, \$type: 'number' } }
-                    ]
-                },
-                {
-                    \$nor: [
-                        { 'nutriments.proteins_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.protein_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.fat_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.fats_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.total-fat_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.total_fat_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carbohydrates_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carbohydrate_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carbs_100g': { \$exists: true, \$type: 'number' } },
-                        { 'nutriments.carb_100g': { \$exists: true, \$type: 'number' } }
-                    ]
-                }
-            ]
-        }
-    ]
-});
-result.deletedCount;
-")
+# Optimized deletion using batches for better performance
+# This approach is faster because:
+# 1. We find IDs first, then delete by _id (faster than complex queries)
+# 2. We delete in smaller batches (5,000 at a time)
+# 3. We show progress
+# 4. We use simpler deleteMany queries by _id which are much faster
 
+BATCH_SIZE=5000
+TOTAL_DELETED=0
+ITERATION=0
+
+# Delete in batches: find IDs, then delete by _id
+while true; do
+    ITERATION=$((ITERATION + 1))
+    echo -n "Batch $ITERATION: Finding and deleting up to $BATCH_SIZE products... "
+    
+    # Delete products directly using the query (simpler and more reliable)
+    BATCH_DELETED=$(MONGO_CMD --eval "
+    var query = {
+        \$or: [
+            { nutriments: { \$exists: false } },
+            { nutriments: null },
+            {
+                \$and: [
+                    {
+                        \$nor: [
+                            { 'nutriments.energy-kcal_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy_kcal_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy-kj_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy_kj_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy-kcal_value': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy_kcal_value': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy-kj_value': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.energy_kj_value': { \$exists: true, \$type: 'number' } }
+                        ]
+                    },
+                    {
+                        \$nor: [
+                            { 'nutriments.proteins_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.protein_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.fat_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.fats_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.total-fat_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.total_fat_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.carbohydrates_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.carbohydrate_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.carbs_100g': { \$exists: true, \$type: 'number' } },
+                            { 'nutriments.carb_100g': { \$exists: true, \$type: 'number' } }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+    
+    // Get count first to see if there are any products to delete
+    var count = db.products.countDocuments(query);
+    if (count === 0) {
+        print(0);
+    } else {
+        // Delete up to BATCH_SIZE documents
+        // We'll use a cursor to get IDs and delete them one by one to avoid circular reference issues
+        var cursor = db.products.find(query, { _id: 1 }).limit($BATCH_SIZE);
+        var ids = [];
+        cursor.forEach(function(doc) {
+            ids.push(doc._id);
+        });
+        
+        if (ids.length === 0) {
+            print(0);
+        } else {
+            var result = db.products.deleteMany({ _id: { \$in: ids } });
+            print(result.deletedCount);
+        }
+    }
+    ")
+    
+    if [ -z "$BATCH_DELETED" ] || [ "$BATCH_DELETED" = "0" ]; then
+        echo "Done! (no more products to delete)"
+        break
+    fi
+    
+    TOTAL_DELETED=$((TOTAL_DELETED + BATCH_DELETED))
+    echo "Deleted $BATCH_DELETED products (Total: $TOTAL_DELETED)"
+    
+    # If we deleted less than batch size, we're done
+    if [ "$BATCH_DELETED" -lt "$BATCH_SIZE" ]; then
+        break
+    fi
+    
+    # Small delay to prevent overwhelming the database and show progress
+    sleep 0.05
+done
+
+DELETED_COUNT=$TOTAL_DELETED
+
+echo ""
 echo "✅ Deletion complete!"
 echo ""
 echo "Deleted products: $DELETED_COUNT"
-echo "Remaining products: $((TOTAL_COUNT - DELETED_COUNT))"
 echo ""
 echo "⚠️  Remember: This operation is irreversible. Make sure you have a backup!"
 

@@ -256,3 +256,4 @@ DATABASE_URL=mongodb://mongo:27017/platepus
 7. ✅ Ограничьте доступ по IP через firewall
 8. ✅ Используйте SSL/TLS для соединений (опционально)
 
+

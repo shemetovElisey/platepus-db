@@ -16,3 +16,4 @@ else
   echo "No dump directory found or dump is empty, skipping import"
 fi
 
+

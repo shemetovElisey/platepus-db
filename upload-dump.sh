@@ -32,3 +32,4 @@ echo "2. Navigate to: ${REMOTE_PATH#*:}"
 echo "3. Extract the dump: gunzip $(basename $DUMP_FILE)"
 echo "4. Or use the extract-and-import.sh script"
 
+

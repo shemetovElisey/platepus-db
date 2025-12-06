@@ -21,10 +21,8 @@ services:
     container_name: platepus-mongo
     restart: unless-stopped
     ports:
-      - '27017:27017'
-      # For production, consider binding only to localhost:
-      # - '127.0.0.1:27017:27017'
-      # Or use firewall rules to restrict access
+      # Доступ только с localhost и IP 5.34.213.116 (настраивается через firewall)
+      - '127.0.0.1:27017:27017'
     environment:
       MONGO_INITDB_DATABASE: platepus
       # For production with authentication, use docker-compose.production.yml
